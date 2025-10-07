@@ -1,0 +1,160 @@
+// SPDX-License-Identifier:MIT
+
+pragma solidity ^0.8.18;
+
+import {DecentralizedStableCoin} from "./DecentralizedStableCoin.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.4/interfaces/AggregatorV3Interface.sol";
+
+// import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+
+contract DSCEngine {
+    ///////////////
+    //  ERRORS   //
+    ///////////////
+
+    error DSCEngine__NeedsMoreThanZero();
+    error DSCEngine__TokenFeedAndPriceFeedAddressesMustBeOfSamelength();
+    error DSCEngine__NotAllowedToken();
+    error DSCEngine__TransferFailed();
+
+    //////////////////////
+    //  STATE VARIABLES //
+    //////////////////////
+
+    mapping(address token => address priceFeed) private s_priceFeeds;
+    mapping(address user => mapping(address token => uint256 amount)) private s_collateralDeposited;
+    mapping(address user => uint256 amountDscMinted) private s_DSCMinted;
+
+    address[] private s_collateralTokens;
+
+    DecentralizedStableCoin public immutable i_dsc;
+
+    ///////////////
+    //  EVENTS   //
+    ///////////////
+
+    event CollateralDeposited(address indexed user, address indexed token, uint256 indexed _amount);
+
+    ///////////////
+    // MODIFIERS //
+    ///////////////
+
+    modifier moreThanZero(uint256 amount) {
+        if (amount <= 0) {
+            revert DSCEngine__NeedsMoreThanZero();
+            _;
+        }
+    }
+
+    // modifier isAllowedToken(address token){
+    //     if(s_priceFeeds[token] == address(0)){
+    //         revert DSCEngine__NotAllowedToken();
+    //     }
+    //     _;
+    // }
+
+    ///////////////
+    // FUNCTIONS //
+    ///////////////
+
+    constructor(address[] memory tokenAddresses, address[] memory priceFeedAddresses, address dscAddress) {
+        if (tokenAddresses.length != priceFeedAddresses.length) {
+            revert DSCEngine__TokenFeedAndPriceFeedAddressesMustBeOfSamelength();
+        }
+        for (uint256 i = 0; i < tokenAddresses.length; i++) {
+            s_priceFeeds[tokenAddresses[i]] = priceFeedAddresses[i];
+            s_collateralTokens.push(tokenAddresses[i]);
+        }
+        i_dsc = DecentralizedStableCoin(dscAddress);
+
+    }
+
+    function depositCollateral(address tokenCollateralAddress, uint256 amountCollateral) external 
+    //  moreThanZero(amountCollateral)
+    {
+        //  isAllowedToken(tokenCollateralAddress)
+        // nonReentrant
+
+        // this mapping will give us info about the user who sent us which token and how much
+        s_collateralDeposited[msg.sender][tokenCollateralAddress] += amountCollateral;
+        emit CollateralDeposited(msg.sender, tokenCollateralAddress, amountCollateral);
+        bool success = IERC20(tokenCollateralAddress).transferFrom(msg.sender, address(this), amountCollateral);
+        if (!success) {
+            revert DSCEngine__TransferFailed();
+        }
+    }
+
+    // check if the collateral value > DSC value
+    // in this function user can tell how much he wants to mint
+    function mintDsc(uint256 amountDscToMint) external {
+        s_DSCMinted[msg.sender] += amountDscToMint;
+        // here we will check if the want to mint more than collateral ($100 eth , 150dsc the want)
+        revertIfHealthFactorisBroken(msg.sender);
+    }
+
+    //////////////////////////////////
+    //PRIVATE & INTERNAL FUNCTIONS //
+    //////////////////////////////////
+
+    
+
+    function _getAccountInformation(address user)
+        private
+        view
+        returns (uint256 totalDscMinted, uint256 collateralValueInUsd)
+    {
+        totalDscMinted = s_DSCMinted[user];
+        collateralValueInUsd = getAccountCollateralValue(user);
+
+    }
+
+
+
+    function _healthFactor(address user) private view returns (uint256) {
+        // total DSC minted
+        // total collateral value value
+        (uint256 totalDscMinted, uint256 collateralValueInUsd) = _getAccountInformation(user);
+    }
+
+    function _revertIfHealthFactorisBroken(address user) internal view {
+        // check health factor (do they have enough collateral)
+        // revert if they dont
+    }
+
+
+
+    //////////////////////////////////
+    //  PUBLIC & EXTERNAL FUNCTIONS //
+    //////////////////////////////////
+
+
+    function getAccountCollateralValue(address user) public view returns (uint256 totalCollateralValueInUsd) {
+        // loop throw each ccollateral token, get the amount they deposited, map it to
+        // the price to get the usd value. 
+        for(uint256 i=0 ; i< s_collateralTokens.length ; i++){
+            address token = s_collateralTokens[i];
+            uint256 amount = s_collateralDeposited[user][token];
+            totalCollateralValueInUsd += getUsdValue(token,amount);
+        }
+        return totalCollateralValueInUsd;
+
+    }
+
+    function getUsdValue(address token , uint256 amount) public view returns (uint256){
+        AggregatorV3Interface priceFeed = AggregatorV3Interface(s_priceFeeds[token]);
+        (,int256 price) = priceFeed.latestRoundData();
+        // suppose 1 ETH = $1000
+        // the returned value from CL will be 1000 * 1e8
+
+        return ((uint256(price) * 1e10) * amount) / 1e18;
+
+
+
+    }
+
+
+
+
+
+}
