@@ -17,11 +17,15 @@ contract DSCEngine {
     error DSCEngine__TokenFeedAndPriceFeedAddressesMustBeOfSamelength();
     error DSCEngine__NotAllowedToken();
     error DSCEngine__TransferFailed();
+    error DSCEngine__BreaksHealthFactor(uint256 userHealthfactor);
+    error DSCEngine__MintFailed();
 
     //////////////////////
     //  STATE VARIABLES //
     //////////////////////
 
+    uint256 private constant LIQUIDATION_THRESHOLD = 50;
+    uint256 private constant MIN_HEALTH_FACTOR = 1;
     mapping(address token => address priceFeed) private s_priceFeeds;
     mapping(address user => mapping(address token => uint256 amount)) private s_collateralDeposited;
     mapping(address user => uint256 amountDscMinted) private s_DSCMinted;
@@ -90,7 +94,12 @@ contract DSCEngine {
     function mintDsc(uint256 amountDscToMint) external {
         s_DSCMinted[msg.sender] += amountDscToMint;
         // here we will check if the want to mint more than collateral ($100 eth , 150dsc the want)
-        revertIfHealthFactorisBroken(msg.sender);
+        _revertIfHealthFactorisBroken(msg.sender);
+        bool minted = i_dsc.mint(msg.sender,amountDscToMint);
+        if(!minted){
+            revert DSCEngine__MintFailed();
+        }
+
     }
 
     //////////////////////////////////
@@ -115,11 +124,17 @@ contract DSCEngine {
         // total DSC minted
         // total collateral value value
         (uint256 totalDscMinted, uint256 collateralValueInUsd) = _getAccountInformation(user);
+        uint256 collateralAdjustedForThreshold = (collateralValueInUsd * LIQUIDATION_THRESHOLD) / 100;
+        return (collateralAdjustedForThreshold * 1e18) / totalDscMinted;
     }
 
     function _revertIfHealthFactorisBroken(address user) internal view {
         // check health factor (do they have enough collateral)
         // revert if they dont
+        uint256 userHealthfactor = _healthFactor(user);
+        if(userHealthfactor < MIN_HEALTH_FACTOR){
+            revert DSCEngine__BreaksHealthFactor(userHealthfactor);
+        }
     }
 
 
@@ -143,13 +158,11 @@ contract DSCEngine {
 
     function getUsdValue(address token , uint256 amount) public view returns (uint256){
         AggregatorV3Interface priceFeed = AggregatorV3Interface(s_priceFeeds[token]);
-        (,int256 price) = priceFeed.latestRoundData();
+        (, int256 price,,,) = priceFeed.latestRoundData();
         // suppose 1 ETH = $1000
         // the returned value from CL will be 1000 * 1e8
 
         return ((uint256(price) * 1e10) * amount) / 1e18;
-
-
 
     }
 
