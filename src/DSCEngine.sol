@@ -44,19 +44,19 @@ contract DSCEngine {
     // MODIFIERS //
     ///////////////
 
-    modifier moreThanZero(uint256 amount) {
-        if (amount <= 0) {
-            revert DSCEngine__NeedsMoreThanZero();
-            _;
-        }
-    }
-
-    // modifier isAllowedToken(address token){
-    //     if(s_priceFeeds[token] == address(0)){
-    //         revert DSCEngine__NotAllowedToken();
+    // modifier moreThanZero(uint256 amount) {
+    //     if (amount <= 0) {
+    //         revert DSCEngine__NeedsMoreThanZero();
+    //         _;
     //     }
-    //     _;
     // }
+
+    modifier isAllowedToken(address token){
+        if(s_priceFeeds[token] == address(0)){
+            revert DSCEngine__NotAllowedToken();
+        }
+        _;
+    }
 
     ///////////////
     // FUNCTIONS //
@@ -71,14 +71,16 @@ contract DSCEngine {
             s_collateralTokens.push(tokenAddresses[i]);
         }
         i_dsc = DecentralizedStableCoin(dscAddress);
-
     }
 
-    function depositCollateral(address tokenCollateralAddress, uint256 amountCollateral) external 
+    function depositCollateral(address tokenCollateralAddress, uint256 amountCollateral) external  isAllowedToken(tokenCollateralAddress)
     //  moreThanZero(amountCollateral)
     {
-        //  isAllowedToken(tokenCollateralAddress)
+        
         // nonReentrant
+        if(amountCollateral == 0){
+            revert DSCEngine__NeedsMoreThanZero();
+        }
 
         // this mapping will give us info about the user who sent us which token and how much
         s_collateralDeposited[msg.sender][tokenCollateralAddress] += amountCollateral;
@@ -91,22 +93,24 @@ contract DSCEngine {
 
     // check if the collateral value > DSC value
     // in this function user can tell how much he wants to mint
-    function mintDsc(uint256 amountDscToMint) external {
+    function mintDsc(uint256 amountDscToMint) public {
         s_DSCMinted[msg.sender] += amountDscToMint;
         // here we will check if the want to mint more than collateral ($100 eth , 150dsc the want)
         _revertIfHealthFactorisBroken(msg.sender);
-        bool minted = i_dsc.mint(msg.sender,amountDscToMint);
-        if(!minted){
+        bool minted = i_dsc.mint(msg.sender, amountDscToMint);
+        if (!minted) {
             revert DSCEngine__MintFailed();
         }
+    }
+
+    function depositCollateralAndMintDsc(address tokenCollateralAddress, uint256 amountCollateral, uint256 amountDscToMint) public {
+        
 
     }
 
     //////////////////////////////////
     //PRIVATE & INTERNAL FUNCTIONS //
     //////////////////////////////////
-
-    
 
     function _getAccountInformation(address user)
         private
@@ -115,10 +119,7 @@ contract DSCEngine {
     {
         totalDscMinted = s_DSCMinted[user];
         collateralValueInUsd = getAccountCollateralValue(user);
-
     }
-
-
 
     function _healthFactor(address user) private view returns (uint256) {
         // total DSC minted
@@ -132,42 +133,32 @@ contract DSCEngine {
         // check health factor (do they have enough collateral)
         // revert if they dont
         uint256 userHealthfactor = _healthFactor(user);
-        if(userHealthfactor < MIN_HEALTH_FACTOR){
+        if (userHealthfactor < MIN_HEALTH_FACTOR) {
             revert DSCEngine__BreaksHealthFactor(userHealthfactor);
         }
     }
-
-
 
     //////////////////////////////////
     //  PUBLIC & EXTERNAL FUNCTIONS //
     //////////////////////////////////
 
-
     function getAccountCollateralValue(address user) public view returns (uint256 totalCollateralValueInUsd) {
         // loop throw each ccollateral token, get the amount they deposited, map it to
-        // the price to get the usd value. 
-        for(uint256 i=0 ; i< s_collateralTokens.length ; i++){
+        // the price to get the usd value.
+        for (uint256 i = 0; i < s_collateralTokens.length; i++) {
             address token = s_collateralTokens[i];
             uint256 amount = s_collateralDeposited[user][token];
-            totalCollateralValueInUsd += getUsdValue(token,amount);
+            totalCollateralValueInUsd += getUsdValue(token, amount);
         }
         return totalCollateralValueInUsd;
-
     }
 
-    function getUsdValue(address token , uint256 amount) public view returns (uint256){
+    function getUsdValue(address token, uint256 amount) public view returns (uint256) {
         AggregatorV3Interface priceFeed = AggregatorV3Interface(s_priceFeeds[token]);
         (, int256 price,,,) = priceFeed.latestRoundData();
         // suppose 1 ETH = $1000
         // the returned value from CL will be 1000 * 1e8
 
         return ((uint256(price) * 1e10) * amount) / 1e18;
-
     }
-
-
-
-
-
 }
