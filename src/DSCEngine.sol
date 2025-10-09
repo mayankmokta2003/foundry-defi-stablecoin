@@ -181,12 +181,9 @@ contract DSCEngine {
         }
         _revertIfHealthFactorisBroken(msg.sender);
 
-
         }
 
     
-
-
 
 
     //////////////////////////////////
@@ -268,14 +265,6 @@ contract DSCEngine {
 
 
 
-
-
-
-
-
-
-    
-
     function getAccountCollateralValue(address user) public view returns (uint256 totalCollateralValueInUsd) {
         // loop throw each ccollateral token, get the amount they deposited, map it to
         // the price to get the usd value.
@@ -333,12 +322,6 @@ contract DSCEngine {
     function getCollateralTokens() external view returns (address[] memory){
         return s_collateralTokens;
     }
-
-
-
-
-
-
 
 
 }
