@@ -189,19 +189,6 @@ contract DSCEngine {
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
     //////////////////////////////////
     //PRIVATE & INTERNAL FUNCTIONS //
     //////////////////////////////////
@@ -233,8 +220,9 @@ contract DSCEngine {
         // total DSC minted
         // total collateral value value
         (uint256 totalDscMinted, uint256 collateralValueInUsd) = _getAccountInformation(user);
-        uint256 collateralAdjustedForThreshold = (collateralValueInUsd * LIQUIDATION_THRESHOLD) / 100;
-        return (collateralAdjustedForThreshold * 1e18) / totalDscMinted;
+        // uint256 collateralAdjustedForThreshold = (collateralValueInUsd * LIQUIDATION_THRESHOLD) / 100;
+        // return (collateralAdjustedForThreshold * 1e18) / totalDscMinted;
+        return _calculateHealthFactor(totalDscMinted,collateralValueInUsd);
     }
 
     function _revertIfHealthFactorisBroken(address user) internal view {
@@ -307,4 +295,50 @@ contract DSCEngine {
 
         return ((uint256(price) * 1e10) * amount) / 1e18;
     }
+
+    function _calculateHealthFactor(uint256 totalDscMinted, uint256 collateralValueInUsd ) internal pure returns (uint256){
+        if(totalDscMinted == 0) return type(uint256).max;
+        uint256 healthFactor = (collateralValueInUsd * LIQUIDATION_THRESHOLD) / 100;
+        return (healthFactor * 1e18) / totalDscMinted;
+
+    }
+
+
+
+    function getAccountInfomation(address user) external view returns (uint256 totalDscMinted, uint256 collateralValueInUsd){
+        (totalDscMinted,collateralValueInUsd) = _getAccountInformation(user);
+    }
+
+    function getHealthFactor(address user) external view returns (uint256) {
+        return _healthFactor(user);
+    }
+
+    function getCollateralBalanceOfUser(address user ,address token ) external view returns (uint256 amount){
+        
+        return s_collateralDeposited[user][token];
+    }
+
+    function getMinHealthFactor() external view returns (uint256){
+        return MIN_HEALTH_FACTOR;
+    }
+
+    function getLiquidationThreshold() external view returns (uint256 amount){
+        return LIQUIDATION_THRESHOLD;
+    }
+
+    function getDsc() external view returns (address) {
+        return address(i_dsc);
+    }
+
+    function getCollateralTokens() external view returns (address[] memory){
+        return s_collateralTokens;
+    }
+
+
+
+
+
+
+
+
 }

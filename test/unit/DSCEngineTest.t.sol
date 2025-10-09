@@ -18,6 +18,7 @@ contract DSCEngineTest is Test {
     HelperConfig config;
     address ethUsdPriceFeed;
     address weth;
+    address btcUsdPriceFeed;
 
     address public USER = makeAddr("user");
     uint256 public constant AMOUNT_COLLATERAL = 10 ether;
@@ -27,13 +28,35 @@ contract DSCEngineTest is Test {
         deployer = new DeployDSC();
         // as our deployer returns dsc and dsce so 
         (dsc,dsce,config) = deployer.run();
-        (ethUsdPriceFeed,,weth,,) = config.activeNetworkConfig();
+        (ethUsdPriceFeed,btcUsdPriceFeed,weth,,) = config.activeNetworkConfig();
         ERC20Mock(weth).mint(USER,STARTING_ERC20_BALANCE);
        
     }
 
 
-    // first test is of getUsdValue
+    ////////////////////////////////
+    //  CONSTRUCTOR TESTS  /////////
+    ////////////////////////////////
+
+    address[] private tokenAddresses;
+    address[] private priceFeedAddresses;
+
+    function testRevertsIfTokenLengthDoesntMatchPriceFeed() public {
+        tokenAddresses.push(weth);
+        priceFeedAddresses.push(ethUsdPriceFeed);
+        priceFeedAddresses.push(btcUsdPriceFeed);
+
+        vm.expectRevert(DSCEngine.DSCEngine__TokenFeedAndPriceFeedAddressesMustBeOfSamelength.selector);
+        new DSCEngine(tokenAddresses,priceFeedAddresses,address(dsc));
+
+    }
+
+
+
+
+
+
+    
 
     ///////////////////
     //  PRICE TESTS  //
@@ -45,6 +68,16 @@ contract DSCEngineTest is Test {
         uint256 expectedUsd = 30000e18;
         uint256 actualUsd = dsce.getUsdValue(weth,ethAmount);
         assertEq(expectedUsd,actualUsd);
+    }
+
+
+    function testgetTokenAmountFromUsd() public {
+        uint256 usdAmount = 100 ether;
+        // 2000/100 = 0.05
+        uint256 expectedWeth = 0.05 ether;
+
+        uint256 actualWeth = dsce.getTokenAmountFromUsd(weth,usdAmount);
+        assertEq(expectedWeth,actualWeth);
     }
 
     ////////////////////////////////
@@ -60,6 +93,41 @@ contract DSCEngineTest is Test {
         vm.stopPrank();
 
     }
+
+    // function testRevertsWithUnapprovedCollateral() public {
+    //     // ERC20Mock ranToken = new ERC20Mock("RAN","RAN",USER,AMOUNT_COLLATERAL);
+    //     ERC20Mock ranToken = new ERC20Mock();
+    //     ranToken.mint(USER, AMOUNT_COLLATERAL);
+
+    //     vm.startPrank(USER);
+    //     vm.expectRevert(DSCEngine.DSCEngine__TransferFailed.selector);
+    //     dsce.depositCollateral(address(ranToken),AMOUNT_COLLATERAL);
+    //     vm.stopPrank();
+
+    // }
+
+    modifier deplositCollateral(){
+        vm.startPrank(USER);
+        ERC20Mock(weth).transfer(address(dsce),AMOUNT_COLLATERAL);
+        dsce.depositCollateral(weth,AMOUNT_COLLATERAL);
+        vm.stopPrank();
+        _;
+    }
+    
+
+    // function testCanDepositCollateralAndGetAccountInfo() public deplositCollateral{
+
+    //     (uint256 totalDscMinted, uint256 collateralValueInUsd) = dsce.getAccountInfomation(USER);
+
+    //     uint256 expectedTotalDscMinted = 0;
+    //     uint256 expectedCollateralValueInUsd = dsce.getTokenAmountFromUsd(weth,collateralValueInUsd);
+
+    //     assertEq(totalDscMinted, expectedTotalDscMinted);
+    //     assertEq(AMOUNT_COLLATERAL, expectedCollateralValueInUsd);
+
+    
+    // }
+
 
 
 
