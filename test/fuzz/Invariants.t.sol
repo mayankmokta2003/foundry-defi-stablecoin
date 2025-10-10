@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.18;
 
-import {Test} from "forge-std/Test.sol";
+import {Test,console} from "forge-std/Test.sol";
 import { StdInvariant } from "forge-std/StdInvariant.sol";
 import {DSCEngine} from "../../src/DSCEngine.sol";
 import {DecentralizedStableCoin} from "../../src/DecentralizedStableCoin.sol";
@@ -30,6 +30,7 @@ contract Invariants is Test {
         // targetContract(address(dsce));
         handler = new Handler(dsce,dsc);
         targetContract(address(handler));
+        console.log("times mint dsc get called: ", handler.timesMintedIsCalled());
     }
 
 
@@ -45,5 +46,10 @@ contract Invariants is Test {
        
         assert (wethValue + wbtcValue >= totalSupply);
     } 
+
+    // function invariants_gettersShouldNotRevert() public view{
+    //     dsce.getLiquidationBunus();
+    //     dsce.getPricision();
+    // }
 
     }
