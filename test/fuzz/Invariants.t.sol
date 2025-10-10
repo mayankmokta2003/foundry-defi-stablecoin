@@ -2,8 +2,8 @@
 
 pragma solidity ^0.8.18;
 
-import {Test,console} from "forge-std/Test.sol";
-import { StdInvariant } from "forge-std/StdInvariant.sol";
+import {Test, console} from "forge-std/Test.sol";
+import {StdInvariant} from "forge-std/StdInvariant.sol";
 import {DSCEngine} from "../../src/DSCEngine.sol";
 import {DecentralizedStableCoin} from "../../src/DecentralizedStableCoin.sol";
 import {DeployDSC} from "../../script/DeployDSC.s.sol";
@@ -12,7 +12,6 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Handler} from "./Handler.t.sol";
 
 contract Invariants is Test {
-
     DeployDSC deployer;
     DSCEngine dsce;
     DecentralizedStableCoin dsc;
@@ -21,35 +20,30 @@ contract Invariants is Test {
     address wbtc;
     Handler handler;
 
-
     function setUp() external {
-
         deployer = new DeployDSC();
-        (dsc,dsce,config) = deployer.run();
-        (,,weth,wbtc,) = config.activeNetworkConfig();
+        (dsc, dsce, config) = deployer.run();
+        (,, weth, wbtc,) = config.activeNetworkConfig();
         // targetContract(address(dsce));
-        handler = new Handler(dsce,dsc);
+        handler = new Handler(dsce, dsc);
         targetContract(address(handler));
         console.log("times mint dsc get called: ", handler.timesMintedIsCalled());
     }
 
-
     function invariant_protocolMustHaveMoreValueThanTotalSupply() public view {
-
         uint256 totalSupply = dsc.totalSupply();
 
         uint256 totalWethDeposited = IERC20(weth).balanceOf(address(dsce));
         uint256 totalWbtcDeplsited = IERC20(wbtc).balanceOf(address(dsce));
 
-        uint256 wethValue = dsce.getUsdValue(weth,totalWethDeposited);
-        uint256 wbtcValue = dsce.getUsdValue(wbtc,totalWbtcDeplsited);
-       
-        assert (wethValue + wbtcValue >= totalSupply);
-    } 
+        uint256 wethValue = dsce.getUsdValue(weth, totalWethDeposited);
+        uint256 wbtcValue = dsce.getUsdValue(wbtc, totalWbtcDeplsited);
+
+        assert(wethValue + wbtcValue >= totalSupply);
+    }
 
     // function invariants_gettersShouldNotRevert() public view{
     //     dsce.getLiquidationBunus();
     //     dsce.getPricision();
     // }
-
-    }
+}
